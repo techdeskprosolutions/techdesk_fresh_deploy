@@ -78,17 +78,12 @@ services:
     container_name: wg-easy
     restart: unless-stopped
     environment:
-      # !!! SET TO YOUR PUBLIC DOMAIN OR STATIC PUBLIC IP !!!
       - WG_HOST=${WG_HOST}
-      # !!! CHANGE THIS IN .env - STRONG PASSWORD FOR THE WG-EASY WEB UI !!!
-      - PASSWORD=${WG_PASSWORD}
+      # Use PASSWORD_HASH instead of PASSWORD (new requirement)
+      - PASSWORD_HASH=$$2a$$12$$VlJI/x2MNWxG46BPh.fOG.JForSLp0sGfu64k7axDT/tmmTGTq2zW   # <-- Paste your hash here and DOUBLE every $
       - WG_PORT=51820
-      # Optional: customize client IP range (default is usually 10.8.0.x)
-      # - WG_DEFAULT_ADDRESS=10.8.0.x
-      # Add other wg-easy env vars as needed (see official docs)
     ports:
-      - "51820:51820/udp"   # WireGuard VPN traffic - REQUIRED
-      # "51821:51821"       # Web UI port - map if you want direct IP access initially
+      - "51820:51820/udp"
     volumes:
       - ./data/wg-easy:/etc/wireguard
     cap_add:
