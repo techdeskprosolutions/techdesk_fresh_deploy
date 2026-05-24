@@ -1,9 +1,8 @@
 version: '3.8'
 
 # =====================================================
-# TechDesk Homelab Core - FINAL 403 FIX
-# Folder-based landing page (panel.techdeskpro.com/public)
-# Ready for GitHub + Hostinger Docker Manager
+# TechDesk Homelab Core - Amped Up Admin Panel
+# Now includes Portainer for full Docker + port visibility
 # =====================================================
 
 services:
@@ -69,48 +68,34 @@ services:
     networks:
       - homelab-proxy
 
-  # ✅ FINAL FIX: Landing page (runs as root to eliminate 403 forever)
+  # Portainer - Full Docker management UI (containers + ports)
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab-proxy
+
+  # Landing page (beautiful dashboard)
   landing:
     image: nginx:alpine
     container_name: landing
     restart: unless-stopped
-    user: "0"   # ← This is the key fix (safe for static files)
+    user: "0"
     volumes:
       - ./panel.techdeskpro.com/public:/usr/share/nginx/html
     command:
       - sh
       - -c
       - |
-        # Create default page if folder is empty or missing
         if [ ! -f /usr/share/nginx/html/index.html ]; then
           cat > /usr/share/nginx/html/index.html << 'EOF'
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>TechDesk Pro • Homelab</title>
-            <style>
-                body { font-family: system-ui; text-align: center; padding: 80px 20px; background: #0f172a; color: #e2e8f0; }
-                h1 { color: #22d3ee; margin-bottom: 10px; }
-                p { font-size: 1.2rem; margin-bottom: 40px; }
-                .links a { color: #67e8f9; margin: 0 20px; text-decoration: none; font-size: 1.1rem; }
-                .links a:hover { text-decoration: underline; }
-            </style>
-        </head>
-        <body>
-            <h1>Welcome to TechDesk Pro</h1>
-            <p>Your secure homelab control panel</p>
-            <div class="links">
-                <a href="https://npm.panel.techdeskpro.com">NPM Admin</a>
-                <a href="https://db.panel.techdeskpro.com">phpMyAdmin</a>
-                <a href="https://vpn.panel.techdeskpro.com">VPN Dashboard</a>
-            </div>
-        </body>
-        </html>
+        <!DOCTYPE html><html><head><meta charset="UTF-8"><title>TechDesk</title></head><body><h1>Welcome</h1></body></html>
         EOF
         fi
-        # Ensure permissions are correct
         chmod -R 755 /usr/share/nginx/html
         exec nginx -g 'daemon off;'
     networks:
@@ -129,3 +114,4 @@ volumes:
   letsencrypt_data:
   mariadb_data:
   wg_easy_data:
+  portainer_data:
