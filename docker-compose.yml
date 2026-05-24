@@ -2,58 +2,47 @@ version: '3.8'
 
 # =====================================================
 # homelab-core - Base Docker Compose
-# NPM + MariaDB + phpMyAdmin + wg-easy (WireGuard Easy)
+# NPM + MariaDB + phpMyAdmin + wg-easy + Landing Page
 #
-# This is a secure, lightweight starting point.
-# - Uses two networks for isolation (proxy + backend)
-# - Named networks so new projects can easily join "homelab-proxy"
-# - All sensitive values loaded from .env (see .env.example)
-# - Comments in ALL CAPS highlight what YOU MUST CHANGE
+# Pre-configured domains (create these proxy hosts in NPM after first launch):
+#   • panel.techdeskpro.com          → Landing page (simple welcome page)
+#   • npm.panel.techdeskpro.com      → Nginx Proxy Manager Admin UI
+#   • db.panel.techdeskpro.com       → phpMyAdmin
+#   • vpn.panel.techdeskpro.com      → WireGuard VPN Web UI
+#
+# All sensitive values loaded from .env
 # =====================================================
 
 services:
-
-  # -------------------------------------------------
   # Nginx Proxy Manager (Reverse Proxy + SSL)
-  # Access initial admin UI at http://YOUR-SERVER-IP:81
-  # Then create proxy hosts + Access Lists for everything else
-  # -------------------------------------------------
   npm:
     image: jc21/nginx-proxy-manager:latest
     container_name: npm
     restart: unless-stopped
     ports:
-      - "80:80"      # HTTP - let NPM handle redirects to HTTPS
-      - "443:443"    # HTTPS - main entry point
-      - "81:81"      # NPM Admin UI (temporary - proxy it later for security)
+      - "80:80"     # HTTP (Let’s Encrypt + redirects)
+      - "443:443"   # HTTPS
+      - "81:81"     # Admin UI (temporary – proxy it later)
     volumes:
       - ./data/npm:/data
       - ./data/npm/letsencrypt:/etc/letsencrypt
     networks:
       - homelab-proxy
 
-  # -------------------------------------------------
-  # MariaDB Database Server
-  # NEVER expose port 3306 publicly. Only internal access.
-  # -------------------------------------------------
+  # MariaDB Database (backend only – never expose publicly)
   mariadb:
     image: mariadb:11
     container_name: mariadb
     restart: unless-stopped
     environment:
-      # !!! CHANGE THIS IN .env - USE A LONG, STRONG, UNIQUE PASSWORD !!!
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      # Optional: pre-create a database (uncomment and set in .env if desired)
-      # MYSQL_DATABASE: ${DB_NAME:-homelab}
+      # MYSQL_DATABASE: ${DB_NAME:-homelab}   # Uncomment + add to .env if you want a DB created automatically
     volumes:
       - ./data/mariadb:/var/lib/mysql
     networks:
       - homelab-backend
 
-  # -------------------------------------------------
-  # phpMyAdmin - Web UI for MariaDB
-  # Access ONLY through NPM proxy (recommended) with Access List
-  # -------------------------------------------------
+  # phpMyAdmin
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
     container_name: phpmyadmin
@@ -61,29 +50,30 @@ services:
     environment:
       PMA_HOST: mariadb
       PMA_PORT: 3306
-      # PMA_ARBITRARY: 1   # Uncomment only if you need to connect to arbitrary hosts
     depends_on:
       - mariadb
     networks:
       - homelab-backend
-      - homelab-proxy   # So NPM can reach it by container name
+      - homelab-proxy   # so NPM can reach it by container name
 
-  # -------------------------------------------------
-  # wg-easy - WireGuard VPN + Web UI
-  # VPN port: 51820/udp (must be forwarded on your router)
-  # Web UI will be protected by PASSWORD + later NPM Access List
-  # -------------------------------------------------
+  # wg-easy – WireGuard VPN + Web UI
+  # Uses plain-text password from .env via unattended setup (no manual hash needed)
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:latest
     container_name: wg-easy
     restart: unless-stopped
     environment:
-      - WG_HOST=${WG_HOST}
-      # Use PASSWORD_HASH instead of PASSWORD (new requirement)
-      - PASSWORD_HASH=$$2a$$12$$VlJI/x2MNWxG46BPh.fOG.JForSLp0sGfu64k7axDT/tmmTGTq2zW   # <-- Paste your hash here and DOUBLE every $
+      - WG_HOST=${WG_HOST}               # Public hostname/IP clients will connect to
+      - INIT_ENABLED=true
+      - INIT_USERNAME=admin              # Default admin user
+      - INIT_PASSWORD=${VPN_UI_PASSWORD} # ← Plain password from .env (set once on first start)
+      - PORT=51821                       # Web UI internal port
       - WG_PORT=51820
+      # Optional extras you can uncomment:
+      # - WG_DEFAULT_ADDRESS=10.8.0.x
+      # - WG_DEFAULT_DNS=1.1.1.1,8.8.8.8
     ports:
-      - "51820:51820/udp"
+      - "51820:51820/udp"   # VPN tunnel (forward this on your router)
     volumes:
       - ./data/wg-easy:/etc/wireguard
     cap_add:
@@ -95,11 +85,19 @@ services:
     networks:
       - homelab-proxy
 
-# -------------------------------------------------
+  # Simple landing page for the root domain panel.techdeskpro.com
+  landing:
+    image: nginx:alpine
+    container_name: landing
+    restart: unless-stopped
+    volumes:
+      - ./data/landing:/usr/share/nginx/html:ro
+    networks:
+      - homelab-proxy
+
+# =====================================================
 # Networks
-# homelab-proxy  → Join this from other compose files for easy NPM proxying
-# homelab-backend → Database isolation
-# -------------------------------------------------
+# =====================================================
 networks:
   homelab-proxy:
     name: homelab-proxy
