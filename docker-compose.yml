@@ -1,14 +1,8 @@
 version: '3.8'
 
 # =====================================================
-# TechDesk Homelab Core - Ready for Hostinger Docker Manager
-# One raw URL deployment → NPM + MariaDB + phpMyAdmin + WireGuard + Landing Page
-#
-# Domains (set these up in NPM after first launch):
-#   panel.techdeskpro.com          → Simple welcome page
-#   npm.panel.techdeskpro.com      → Nginx Proxy Manager
-#   db.panel.techdeskpro.com       → phpMyAdmin
-#   vpn.panel.techdeskpro.com      → WireGuard UI
+# TechDesk Homelab Core - Folder-based landing page
+# Ready for GitHub + Hostinger Docker Manager
 # =====================================================
 
 services:
@@ -74,39 +68,13 @@ services:
     networks:
       - homelab-proxy
 
-  # Simple landing page for panel.techdeskpro.com (no extra files needed)
+  # ✅ Landing page now uses real folder (easy to expand)
   landing:
     image: nginx:alpine
     container_name: landing
     restart: unless-stopped
-    command: >
-      sh -c "cat > /usr/share/nginx/html/index.html << 'EOF'
-      <!DOCTYPE html>
-      <html lang=\"en\">
-      <head>
-          <meta charset=\"UTF-8\">
-          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-          <title>TechDesk Pro • Homelab</title>
-          <style>
-              body { font-family: system-ui; text-align: center; padding: 80px 20px; background: #0f172a; color: #e2e8f0; }
-              h1 { color: #22d3ee; margin-bottom: 10px; }
-              p { font-size: 1.2rem; margin-bottom: 40px; }
-              .links a { color: #67e8f9; margin: 0 20px; text-decoration: none; font-size: 1.1rem; }
-              .links a:hover { text-decoration: underline; }
-          </style>
-      </head>
-      <body>
-          <h1>Welcome to TechDesk Pro</h1>
-          <p>Your secure homelab control panel</p>
-          <div class=\"links\">
-              <a href=\"https://npm.panel.techdeskpro.com\">NPM Admin</a>
-              <a href=\"https://db.panel.techdeskpro.com\">phpMyAdmin</a>
-              <a href=\"https://vpn.panel.techdeskpro.com\">VPN Dashboard</a>
-          </div>
-      </body>
-      </html>
-      EOF
-      && nginx -g 'daemon off;'"
+    volumes:
+      - ./panel.techdeskpro.com/public:/usr/share/nginx/html:ro
     networks:
       - homelab-proxy
 
