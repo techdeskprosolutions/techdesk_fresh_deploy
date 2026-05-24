@@ -1,48 +1,42 @@
 version: '3.8'
 
 # =====================================================
-# homelab-core - Base Docker Compose
-# NPM + MariaDB + phpMyAdmin + wg-easy + Landing Page
+# TechDesk Homelab Core - Ready for Hostinger Docker Manager
+# One raw URL deployment → NPM + MariaDB + phpMyAdmin + WireGuard + Landing Page
 #
-# Pre-configured domains (create these proxy hosts in NPM after first launch):
-#   • panel.techdeskpro.com          → Landing page (simple welcome page)
-#   • npm.panel.techdeskpro.com      → Nginx Proxy Manager Admin UI
-#   • db.panel.techdeskpro.com       → phpMyAdmin
-#   • vpn.panel.techdeskpro.com      → WireGuard VPN Web UI
-#
-# All sensitive values loaded from .env
+# Domains (set these up in NPM after first launch):
+#   panel.techdeskpro.com          → Simple welcome page
+#   npm.panel.techdeskpro.com      → Nginx Proxy Manager
+#   db.panel.techdeskpro.com       → phpMyAdmin
+#   vpn.panel.techdeskpro.com      → WireGuard UI
 # =====================================================
 
 services:
-  # Nginx Proxy Manager (Reverse Proxy + SSL)
   npm:
     image: jc21/nginx-proxy-manager:latest
     container_name: npm
     restart: unless-stopped
     ports:
-      - "80:80"     # HTTP (Let’s Encrypt + redirects)
-      - "443:443"   # HTTPS
-      - "81:81"     # Admin UI (temporary – proxy it later)
+      - "80:80"
+      - "443:443"
+      - "81:81"
     volumes:
-      - ./data/npm:/data
-      - ./data/npm/letsencrypt:/etc/letsencrypt
+      - npm_data:/data
+      - letsencrypt_data:/etc/letsencrypt
     networks:
       - homelab-proxy
 
-  # MariaDB Database (backend only – never expose publicly)
   mariadb:
     image: mariadb:11
     container_name: mariadb
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      # MYSQL_DATABASE: ${DB_NAME:-homelab}   # Uncomment + add to .env if you want a DB created automatically
     volumes:
-      - ./data/mariadb:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     networks:
       - homelab-backend
 
-  # phpMyAdmin
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
     container_name: phpmyadmin
@@ -54,28 +48,23 @@ services:
       - mariadb
     networks:
       - homelab-backend
-      - homelab-proxy   # so NPM can reach it by container name
+      - homelab-proxy
 
-  # wg-easy – WireGuard VPN + Web UI
-  # Uses plain-text password from .env via unattended setup (no manual hash needed)
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:latest
     container_name: wg-easy
     restart: unless-stopped
     environment:
-      - WG_HOST=${WG_HOST}               # Public hostname/IP clients will connect to
-      - INIT_ENABLED=true
-      - INIT_USERNAME=admin              # Default admin user
-      - INIT_PASSWORD=${VPN_UI_PASSWORD} # ← Plain password from .env (set once on first start)
-      - PORT=51821                       # Web UI internal port
-      - WG_PORT=51820
-      # Optional extras you can uncomment:
-      # - WG_DEFAULT_ADDRESS=10.8.0.x
-      # - WG_DEFAULT_DNS=1.1.1.1,8.8.8.8
+      WG_HOST: ${WG_HOST}
+      INIT_ENABLED: "true"
+      INIT_USERNAME: admin
+      INIT_PASSWORD: ${VPN_UI_PASSWORD}
+      PORT: 51821
+      WG_PORT: 51820
     ports:
-      - "51820:51820/udp"   # VPN tunnel (forward this on your router)
+      - "51820:51820/udp"
     volumes:
-      - ./data/wg-easy:/etc/wireguard
+      - wg_easy_data:/etc/wireguard
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -85,19 +74,42 @@ services:
     networks:
       - homelab-proxy
 
-  # Simple landing page for the root domain panel.techdeskpro.com
+  # Simple landing page for panel.techdeskpro.com (no extra files needed)
   landing:
     image: nginx:alpine
     container_name: landing
     restart: unless-stopped
-    volumes:
-      - ./data/landing:/usr/share/nginx/html:ro
+    command: >
+      sh -c "cat > /usr/share/nginx/html/index.html << 'EOF'
+      <!DOCTYPE html>
+      <html lang=\"en\">
+      <head>
+          <meta charset=\"UTF-8\">
+          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+          <title>TechDesk Pro • Homelab</title>
+          <style>
+              body { font-family: system-ui; text-align: center; padding: 80px 20px; background: #0f172a; color: #e2e8f0; }
+              h1 { color: #22d3ee; margin-bottom: 10px; }
+              p { font-size: 1.2rem; margin-bottom: 40px; }
+              .links a { color: #67e8f9; margin: 0 20px; text-decoration: none; font-size: 1.1rem; }
+              .links a:hover { text-decoration: underline; }
+          </style>
+      </head>
+      <body>
+          <h1>Welcome to TechDesk Pro</h1>
+          <p>Your secure homelab control panel</p>
+          <div class=\"links\">
+              <a href=\"https://npm.panel.techdeskpro.com\">NPM Admin</a>
+              <a href=\"https://db.panel.techdeskpro.com\">phpMyAdmin</a>
+              <a href=\"https://vpn.panel.techdeskpro.com\">VPN Dashboard</a>
+          </div>
+      </body>
+      </html>
+      EOF
+      && nginx -g 'daemon off;'"
     networks:
       - homelab-proxy
 
-# =====================================================
-# Networks
-# =====================================================
 networks:
   homelab-proxy:
     name: homelab-proxy
@@ -105,3 +117,9 @@ networks:
   homelab-backend:
     name: homelab-backend
     driver: bridge
+
+volumes:
+  npm_data:
+  letsencrypt_data:
+  mariadb_data:
+  wg_easy_data:
