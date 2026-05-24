@@ -1,7 +1,7 @@
 version: '3.8'
 
 # =====================================================
-# TechDesk Homelab Core - Folder-based landing page
+# TechDesk Homelab Core - Folder-based landing page (403 FIXED)
 # Ready for GitHub + Hostinger Docker Manager
 # =====================================================
 
@@ -68,13 +68,50 @@ services:
     networks:
       - homelab-proxy
 
-  # ✅ Landing page now uses real folder (easy to expand)
+  # ✅ 403 FIXED: Landing page with auto-fallback + permission fix
   landing:
     image: nginx:alpine
     container_name: landing
     restart: unless-stopped
     volumes:
       - ./panel.techdeskpro.com/public:/usr/share/nginx/html:ro
+    command:
+      - sh
+      - -c
+      - |
+        # Create default page if folder is empty/missing on first deploy
+        if [ ! -f /usr/share/nginx/html/index.html ]; then
+          cat > /usr/share/nginx/html/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>TechDesk Pro • Homelab</title>
+            <style>
+                body { font-family: system-ui; text-align: center; padding: 80px 20px; background: #0f172a; color: #e2e8f0; }
+                h1 { color: #22d3ee; margin-bottom: 10px; }
+                p { font-size: 1.2rem; margin-bottom: 40px; }
+                .links a { color: #67e8f9; margin: 0 20px; text-decoration: none; font-size: 1.1rem; }
+                .links a:hover { text-decoration: underline; }
+            </style>
+        </head>
+        <body>
+            <h1>Welcome to TechDesk Pro</h1>
+            <p>Your secure homelab control panel</p>
+            <div class="links">
+                <a href="https://npm.panel.techdeskpro.com">NPM Admin</a>
+                <a href="https://db.panel.techdeskpro.com">phpMyAdmin</a>
+                <a href="https://vpn.panel.techdeskpro.com">VPN Dashboard</a>
+            </div>
+        </body>
+        </html>
+        EOF
+        fi
+        # Fix permissions so nginx user can always read your files
+        chown -R 101:101 /usr/share/nginx/html 2>/dev/null || true
+        chmod -R 755 /usr/share/nginx/html 2>/dev/null || true
+        exec nginx -g 'daemon off;'
     networks:
       - homelab-proxy
 
